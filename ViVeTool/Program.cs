@@ -11,6 +11,11 @@ namespace Albacore.ViVeTool
 {
     class Program
     {
+        // Curated IDs for the transformation
+        private static readonly uint[] CoreOsIds = { 38078204, 44156104, 25350390, 24674586 };
+        private static readonly uint[] NextGenAiIds = { 44156104, 48433719, 56031573, 51207788, 54792954, 55345819 };
+        private static readonly uint[] Windows12Ids = { 40729830, 44470355, 39281392, 41655236, 42105254, 47205210, 44774629, 44850061 };
+
         static void Main(string[] args)
         {
             if (args.Length == 0)
@@ -19,7 +24,7 @@ namespace Albacore.ViVeTool
                 return;
             }
 
-            var allKeywords = new List<string>();
+            var finalIds = new HashSet<uint>();
             bool processed = false;
 
             foreach (var arg in args)
@@ -28,15 +33,19 @@ namespace Albacore.ViVeTool
                 switch (command)
                 {
                     case "coreos":
-                        allKeywords.AddRange(new[] { "WCOS", "CoreOS" });
+                        foreach (var id in CoreOsIds) finalIds.Add(id);
+                        // Add keyword discovery for extra coverage
+                        foreach (var id in FindFeatureIds(new[] { "WCOS", "CoreOS" })) finalIds.Add(id);
                         processed = true;
                         break;
                     case "nextgenai":
-                        allKeywords.AddRange(new[] { "NextGen", "AI", "Copilot", "Muse", "Generative", "StudioEffects" });
+                        foreach (var id in NextGenAiIds) finalIds.Add(id);
+                        foreach (var id in FindFeatureIds(new[] { "NextGen", "AI", "Copilot", "Muse", "Generative" })) finalIds.Add(id);
                         processed = true;
                         break;
                     case "windows12":
-                        allKeywords.AddRange(new[] { "Germanium", "MTestUx", "Win12", "W12", "Floating" });
+                        foreach (var id in Windows12Ids) finalIds.Add(id);
+                        foreach (var id in FindFeatureIds(new[] { "Germanium", "MTestUx", "Win12", "W12", "Floating" })) finalIds.Add(id);
                         processed = true;
                         break;
                     case "?":
@@ -48,37 +57,38 @@ namespace Albacore.ViVeTool
 
             if (processed)
             {
-                ApplyFeatures(allKeywords.Distinct().ToArray());
+                ApplyFinalFeatures(finalIds.ToArray());
             }
             else
             {
-                Console.WriteLine("No valid commands recognized.");
+                Console.WriteLine("No valid transformation commands recognized.");
                 PrintHelp();
             }
         }
 
         static void PrintHelp()
         {
-            Console.WriteLine("ViVeTool - Modernized Feature Discovery Tool");
-            Console.WriteLine("Usage: ViVeTool <command1> [command2] ...");
+            Console.WriteLine("ViVeTool - Windows 11 Transformer");
+            Console.WriteLine("Usage: ViVeTool /coreos | /nextgenai | /windows12");
+            Console.WriteLine();
+            Console.WriteLine("Description:");
+            Console.WriteLine("  Recoded to fully reshape Windows 11 to look and feel like future iterations.");
             Console.WriteLine();
             Console.WriteLine("Commands:");
-            Console.WriteLine("  /coreos      - Enable CoreOS features");
-            Console.WriteLine("  /nextgenai   - Enable NextGen AI features");
-            Console.WriteLine("  /windows12   - Enable Windows 12 (Germanium) features");
+            Console.WriteLine("  /coreos      - Apply CoreOS/WCOS environment features");
+            Console.WriteLine("  /nextgenai   - Enable NextGen AI and Copilot capabilities");
+            Console.WriteLine("  /windows12   - Full UI transformation (Floating Taskbar, New Start, etc.)");
         }
 
-        static void ApplyFeatures(string[] keywords)
+        static void ApplyFinalFeatures(uint[] ids)
         {
-            Console.WriteLine($"Searching for features related to: {string.Join(", ", keywords)}...");
-            var ids = FindFeatureIds(keywords);
-            if (ids.Count == 0)
+            if (ids.Length == 0)
             {
-                Console.WriteLine("No features found for these keywords.");
+                Console.WriteLine("No transformation features identified.");
                 return;
             }
 
-            Console.WriteLine($"Found {ids.Count} features. Applying to Runtime and Boot stores...");
+            Console.WriteLine($"Initiating transformation with {ids.Length} feature modifications...");
 
             var updates = ids.Select(id => new RTL_FEATURE_CONFIGURATION_UPDATE
             {
@@ -90,35 +100,33 @@ namespace Albacore.ViVeTool
 
             try
             {
+                // Apply to Runtime (Instant effect where possible)
                 int runtimeResult = FeatureManager.SetFeatureConfigurations(updates, RTL_FEATURE_CONFIGURATION_TYPE.Runtime);
-                Console.WriteLine($"Runtime store: {(runtimeResult == 0 ? "Success" : $"Failed (0x{runtimeResult:X8})")}");
+                Console.WriteLine($"Runtime Update: {(runtimeResult == 0 ? "Success" : $"Error 0x{runtimeResult:X8}")}");
 
+                // Apply to Boot (Persistent effect)
                 int bootResult = FeatureManager.SetFeatureConfigurations(updates, RTL_FEATURE_CONFIGURATION_TYPE.Boot);
-                Console.WriteLine($"Boot store: {(bootResult == 0 ? "Success" : $"Failed (0x{bootResult:X8})")}");
+                Console.WriteLine($"Boot Persistence: {(bootResult == 0 ? "Success" : $"Error 0x{bootResult:X8}")}");
 
                 if (bootResult == 0)
                 {
                     FeatureManager.SetBootFeatureConfigurationState(BSD_FEATURE_CONFIGURATION_STATE.BootPending);
-                    Console.WriteLine("A reboot is recommended to apply boot-persistent changes.");
+                    Console.WriteLine("\nTransformation sequence complete. REBOOT REQUIRED for full effect.");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error applying features: {ex.Message}");
+                Console.WriteLine($"Critical failure during transformation: {ex.Message}");
             }
         }
 
         static List<uint> FindFeatureIds(string[] keywords)
         {
-            var results = new HashSet<uint>();
+            var results = new List<uint>();
             var assembly = Assembly.GetExecutingAssembly();
             var resourceName = assembly.GetManifestResourceNames().FirstOrDefault(n => n.EndsWith("FeatureDictionary.pfs"));
 
-            if (resourceName == null)
-            {
-                Console.WriteLine("Error: Feature dictionary not found in resources.");
-                return new List<uint>();
-            }
+            if (resourceName == null) return results;
 
             using (Stream stream = assembly.GetManifestResourceStream(resourceName))
             using (StreamReader reader = new StreamReader(stream))
@@ -127,25 +135,19 @@ namespace Albacore.ViVeTool
                 {
                     var line = reader.ReadLine();
                     if (string.IsNullOrWhiteSpace(line)) continue;
-
                     var parts = line.Split(',');
                     if (parts.Length < 2) continue;
-
                     var name = parts[0];
                     if (uint.TryParse(parts[1], out uint id))
                     {
-                        foreach (var keyword in keywords)
+                        if (keywords.Any(k => name.Contains(k, StringComparison.OrdinalIgnoreCase)))
                         {
-                            if (name.Contains(keyword, StringComparison.OrdinalIgnoreCase))
-                            {
-                                results.Add(id);
-                                break;
-                            }
+                            results.Add(id);
                         }
                     }
                 }
             }
-            return results.ToList();
+            return results;
         }
     }
 }
